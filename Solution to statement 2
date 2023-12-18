@@ -1,0 +1,80 @@
+from xecd_rates_client import XecdClient
+import pandas as pd
+from datetime import datetime
+from dateutil import parser
+import schedule
+import time
+
+# Replace with your XE account ID and API key
+ACCOUNT_ID = 'mytech531309374'
+API_KEY = 'fp00m4ii742r1v5lfakk5ub1dc'
+
+def get_historical_rates(xecd):
+    try:
+        # List of target currencies
+        target_currencies = ['NGN', 'GHS', 'KES', 'UGX', 'MAD', 'XOF', 'EGP']
+
+        # Create a list to store the data
+        data = []
+
+        # Loop through target currencies
+        for currency_to in target_currencies:
+            # Make a request to the XE API for historical rates
+            response = xecd.historic_rate_period(55, "USD", currency_to, "2023-12-01T12:00", "2023-12-02T12:00")
+
+            # Check if the response is a dictionary and if it contains an 'error' key
+            if isinstance(response, dict) and 'error' in response:
+                print(f"Error: {response['error']['description']}")
+            else:
+                # If the response is not an error, extract the relevant information
+                if 'to' in response and currency_to in response['to']:
+                    rates = response['to'][currency_to]
+
+                    for rate_item in rates:
+                        timestamp = parser.parse(rate_item['timestamp'])
+                        usd_to_currency_rate = rate_item['mid']
+                        currency_from = 'USD'
+
+                        # Append data in the required format to the list
+                        data.append({
+                            'timestamp': timestamp,
+                            'currency_from': currency_from,
+                            'USD_to_currency_rate': usd_to_currency_rate,
+                            'currency_to_USD_rate': 1 / usd_to_currency_rate,
+                            'currency_to': currency_to
+                        })
+                else:
+                    print(f"Error: Unexpected response format: {response}")
+
+        return data
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+
+def job(xecd):
+    historical_rates_data = get_historical_rates(xecd)
+
+    if historical_rates_data:
+        # Create a DataFrame from the list
+        df = pd.DataFrame(historical_rates_data)
+        # Save to CSV or database, or perform any other desired actions
+        df.to_csv('historical_exchange_rates.csv', index=False)
+        print("Data saved to historical_exchange_rates.csv")
+
+# Create an instance of the XecdClient
+xecd = XecdClient(ACCOUNT_ID, API_KEY)
+
+# Schedule the job to run at 1am and 11pm
+schedule.every().day.at("14:05").do(job, xecd=xecd)
+#schedule.every().day.at("23:00").do(job, xecd=xecd)
+
+# Optional: Test run the job immediately
+job(xecd)
+
+# Run the scheduler for 24 hours (86400 seconds)
+timeout_seconds = 60
+start_time = time.time()
+
+while time.time() - start_time < timeout_seconds:
+    schedule.run_pending()
+    time.sleep(1)
