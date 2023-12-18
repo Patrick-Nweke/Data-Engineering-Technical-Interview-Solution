@@ -64,9 +64,9 @@ def job(xecd):
 # Create an instance of the XecdClient
 xecd = XecdClient(ACCOUNT_ID, API_KEY)
 
-# Schedule the job to run at 1am and 11pm
+# Schedule the job to run at 11pm and 1am
+schedule.every().day.at("23:00").do(job, xecd=xecd)
 schedule.every().day.at("01:00").do(job, xecd=xecd)
-#schedule.every().day.at("23:00").do(job, xecd=xecd)
 
 # Optional: Test run the job immediately
 job(xecd)
